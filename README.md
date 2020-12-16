@@ -1,1 +1,1 @@
-# Stakepool-Oro-SmartContract
+# Stakepool and Oro Contracts
