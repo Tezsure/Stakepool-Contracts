@@ -84,7 +84,7 @@ class StakingMarket(sp.Contract):
                 sp.for x in self.data.cycleDet[cycleref.value].betDet.keys():
                     sp.if sp.fst(x)==sp.snd(x):
                         sp.if sp.fst(x)<0:
-                            sp.if currentPrice<self.data.cycleDet[cycleref.value].cPrice-sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()):
+                            sp.if currentPrice<self.data.cycleDet[cycleref.value].cPrice+sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()):
                                 sp.if self.data.cycleDet[cycleref.value].cAmount!=self.data.cycleDet[cycleref.value].betDet[x].amt:
                                     sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
                                         self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
@@ -106,7 +106,7 @@ class StakingMarket(sp.Contract):
                                     sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
                                         sp.send(y.bettor,y.invest)
                         sp.else:
-                            sp.if currentPrice>=self.data.cycleDet[cycleref.value].cPrice-sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()):
+                            sp.if currentPrice>=self.data.cycleDet[cycleref.value].cPrice+sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()):
                                 sp.if self.data.cycleDet[cycleref.value].cAmount!=self.data.cycleDet[cycleref.value].betDet[x].amt:
                                     sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
                                         self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
@@ -128,7 +128,7 @@ class StakingMarket(sp.Contract):
                                     sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
                                         sp.send(y.bettor,y.invest)
                     sp.else:
-                        sp.if (currentPrice>=self.data.cycleDet[cycleref.value].cPrice-sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()))&(currentPrice<self.data.cycleDet[cycleref.value].cPrice-sp.fst(sp.ediv(sp.snd(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some())):
+                        sp.if (currentPrice>=self.data.cycleDet[cycleref.value].cPrice+sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()))&(currentPrice<self.data.cycleDet[cycleref.value].cPrice+sp.fst(sp.ediv(sp.snd(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some())):
                             sp.if self.data.cycleDet[cycleref.value].cAmount!=self.data.cycleDet[cycleref.value].betDet[x].amt:
                                 sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
                                     self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
@@ -189,9 +189,8 @@ def test():
     scenario += c1.delegate(sp.some(sp.key_hash("tz1YB12JHVHw9GbN66wyfakGYgdTBvokmXQk"))).run(sender = sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2"))
     scenario += c1.delegate(sp.none).run(sender =sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2"))
     scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    #scenario += c1.setWager(250).run(sender = wagerA, amount = sp.tez(20))
-    #scenario += c1.matchWager(250).run(sender = takerA, amount = sp.tez(20))
-"""
+    scenario += c1.setWager((0,250)).run(sender = wagerA, amount = sp.tez(20))
+    scenario += c1.collateralize().run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'), amount = sp.tez(2000))
     scenario += c1.winningsTransfer(150).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
     scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
     scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
@@ -201,4 +200,3 @@ def test():
     scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
     scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
     scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-"""
