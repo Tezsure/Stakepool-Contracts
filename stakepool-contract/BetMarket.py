@@ -10,6 +10,7 @@ class StakingMarket(sp.Contract):
     @sp.entry_point
     def default(self):
         sp.verify(sp.amount >= sp.mutez(0))
+        self.data.collateral+=sp.amount
 
     # Admin-only. Give admin rights to an address.
     @sp.entry_point
