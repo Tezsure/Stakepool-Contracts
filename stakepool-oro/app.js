@@ -10,7 +10,7 @@ const sendPriceToContract = async (price) => {
   try {
     const signer = await InMemorySigner.InMemorySigner.fromSecretKey('edskRfLWCQtjyagyqgf4EGfgpXz8mWVaXm2esfpxS68TAixYs4oEvmMYjWztY2ygwvBMC5ZG2v686DQQEPiVBVDXS2EXqFdD4R');
     tezos.setProvider({signer});
-    tezos.contract.at("KT1AkmEKWNKSqK48FTrAF9xUXZ1UdZEPcryk")
+    tezos.contract.at("KT1AQd6KeoPyFJdY4baRyR6zCkGZV2r35K1u")
         .then(contract => {
             return contract.methods.winningsTransfer(price).send()
         })
