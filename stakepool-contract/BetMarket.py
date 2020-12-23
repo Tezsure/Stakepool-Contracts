@@ -2,7 +2,7 @@
 import smartpy as sp
 
 class StakingMarket(sp.Contract):
-    """Initializing the map wager(unmatched wager pool),set inside a map cWager(Matched wager pool),currentPrice(Current price of BTC wrt USD),rate(Staking return percentage in basis points), Baddress(Baking Contract Address),,batchcount(counter that tracks the baker transaction batch),returnCount(Counter that tracks the baker transaction batch that has been completed),wagerCount(Counter that tracks the number of wagers set),admin(address of the contract deployer),detMap(Contains the full details of all the wagers participating in the process)"""
+    """Initializing the map wager(unmatched wager pool),set inside a map cWager(Matched wager pool),currentPrice(Current price of BTC wrt USD),rate(Staking return percentage in basis points), Baddress(Baking Contract Address),time(list of timestamps to ascertain the staking period),batchcount(counter that tracks the baker transaction batch),returnCount(Counter that tracks the baker transaction batch that has been completed),wagerCount(Counter that tracks the number of wagers set),admin(address of the contract deployer),detMap(Contains the full details of all the wagers participating in the process)"""
     def __init__(self,admin):
         self.init(rate=sp.nat(144),collateral=sp.mutez(0), withdrawcycle=sp.int(0),admin=sp.set([admin]),rangeEnd=sp.int(1000),rangestep=sp.int(250),interestPool=sp.mutez(0),
         cycleDet=sp.map(tkey=sp.TInt,tvalue=sp.TRecord(cPrice=sp.TInt,cAmount=sp.TMutez, betDet=sp.TMap(sp.TPair(sp.TInt,sp.TInt),sp.TRecord(amt=sp.TMutez,winnings=sp.TMutez,det=sp.TList(sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))))) )
