@@ -1,14 +1,14 @@
 const Axios = require('axios');
 const Tezos = require('@taquito/taquito');
 const InMemorySigner  = require('@taquito/signer');
-const rpc = 'https://delphinet.smartpy.io';
+const rpc = 'https://testnet.tezster.tech';
 const tezos = new Tezos.TezosToolkit(rpc);
 var cycle=0;
 var errorFlag=false;
 
 const sendPriceToContract = async (price) => {
   try {
-    const signer = await InMemorySigner.InMemorySigner.fromSecretKey('edskRfLWCQtjyagyqgf4EGfgpXz8mWVaXm2esfpxS68TAixYs4oEvmMYjWztY2ygwvBMC5ZG2v686DQQEPiVBVDXS2EXqFdD4R');
+    const signer = await InMemorySigner.InMemorySigner.fromSecretKey(process.env.Privatekey);
     tezos.setProvider({signer});
     tezos.contract.at("KT1AQd6KeoPyFJdY4baRyR6zCkGZV2r35K1u")
         .then(contract => {
