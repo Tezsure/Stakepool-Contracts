@@ -5,12 +5,13 @@ const rpc = 'https://testnet.tezster.tech';
 const tezos = new Tezos.TezosToolkit(rpc);
 var cycle=0;
 var errorFlag=false;
+const contractAddress = {"tezos":"KT1AQd6KeoPyFJdY4baRyR6zCkGZV2r35K1u", "ethereum":"", "bitcoin":""};
 
-const sendPriceToContract = async (price) => {
+const sendPriceToContract = async (id,price) => {
   try {
     const signer = await InMemorySigner.InMemorySigner.fromSecretKey(process.env.Privatekey);
     tezos.setProvider({signer});
-    tezos.contract.at("KT1AQd6KeoPyFJdY4baRyR6zCkGZV2r35K1u")
+    tezos.contract.at(contractAddress.id)
         .then(contract => {
             return contract.methods.winningsTransfer(price).send()
         })
@@ -56,13 +57,16 @@ const getPrice = async () => {
     cycle=cycleApiResponse.data.cycle;
     cycleEndTime=new Date(cycleApiResponse.data.end_time);
     cycleEndTime.setSeconds(cycleEndTime.getSeconds() + (4*cycleApiResponse.data.solvetime_min))
-    Axios.get("https://api.coingecko.com/api/v3/coins/tezos?localization=false&tickers=false&community_data=false&developer_data=false&sparkline=false")
+    Axios.get("https://api.coingecko.com/api/v3/simple/price?ids=tezos%2Cethereum%2Cbitcoin&vs_currencies=usd&include_market_cap=false&include_24hr_vol=false&include_24hr_change=false&include_last_updated_at=true")
         .then(res => {
-            console.log(res.data.market_data.current_price.usd);
-            let priceToBeSent = res.data.market_data.current_price.usd * 100;
-            priceToBeSent = Math.floor(priceToBeSent);
-            console.log(priceToBeSent);
-            sendPriceToContract(priceToBeSent);
+            for(var priceId in res.data){
+              console.log("Data received for "+priceId);
+              console.log(res.data.priceId);
+              let priceToBeSent = res.data.priceId.usd * 100;
+              priceToBeSent = Math.floor(priceToBeSent);
+              console.log(priceToBeSent);
+              sendPriceToContract(priceId,priceToBeSent);
+            }
         })
         .catch(err => {
             console.log(err);
