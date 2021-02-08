@@ -1,11 +1,10 @@
-#Using maps.Allows the taker to match with the wager whose wager was set first
+
 import smartpy as sp
 
 class StakingMarket(sp.Contract):
-    """Initializing the map wager(unmatched wager pool),set inside a map cWager(Matched wager pool),currentPrice(Current price of BTC wrt USD),rate(Staking return percentage in basis points), Baddress(Baking Contract Address),time(list of timestamps to ascertain the staking period),batchcount(counter that tracks the baker transaction batch),returnCount(Counter that tracks the baker transaction batch that has been completed),wagerCount(Counter that tracks the number of wagers set),admin(address of the contract deployer),detMap(Contains the full details of all the wagers participating in the process)"""
     def __init__(self,admin):
-        self.init(rate=sp.nat(144),collateral=sp.mutez(0), withdrawcycle=sp.int(0),admin=sp.set([admin]),rangeEnd=sp.int(1000),rangestep=sp.int(250),interestPool=sp.mutez(0),
-        cycleDet=sp.map(tkey=sp.TInt,tvalue=sp.TRecord(cPrice=sp.TInt,cAmount=sp.TMutez, betDet=sp.TMap(sp.TPair(sp.TInt,sp.TInt),sp.TRecord(amt=sp.TMutez,winnings=sp.TMutez,det=sp.TList(sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))))) )
+        self.init(rate=sp.nat(144),collateral=sp.mutez(0), currentReferenceRewardCycle=sp.int(0),admin=sp.set([admin]),rangeEnd=sp.int(1000),rangestep=sp.int(250),rewardCarryForwarded=sp.mutez(0),
+        cycleOperations=sp.map(tkey=sp.TInt,tvalue=sp.TRecord(priceAtCurrentCycle=sp.TInt,cAmount=sp.TMutez, rangeDetails=sp.TMap(sp.TPair(sp.TInt,sp.TInt),sp.TRecord(amountInRange=sp.TMutez,totalRewards=sp.TMutez,bettorsDetails=sp.TList(sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))))) )
 
     @sp.entry_point
     def default(self):
@@ -38,7 +37,7 @@ class StakingMarket(sp.Contract):
         sp.verify(sp.amount == sp.mutez(0))
         sp.set_delegate(baker)
 
-    # Admin-only. Provide tez as collateral for interest to be paid.
+    # Admin-only. Provide tez as collateral for rewards to be paid.
     @sp.entry_point
     def collateralize(self):
         sp.verify(self.data.admin.contains(sp.sender),message="Only admin can provide a collateral")
@@ -52,123 +51,116 @@ class StakingMarket(sp.Contract):
         self.data.collateral -= amount
         sp.send(sp.sender, amount)
 
-    # Admin-only. Set the current offer: interest rate (in basis points),fee rate(in basis points).
+    # Admin-only. Set the current offer: rewards rate (in basis points).
     @sp.entry_point
-    def changeOffer(self, rate):
+    def ChangeRewardRoi(self, rate):
         sp.verify(self.data.admin.contains(sp.sender),message="Only admins can change the current offer")
         self.data.rate = rate
 
     @sp.entry_point
-    def setWager(self,spercent):
-        sp.verify(self.data.withdrawcycle!=0,message="Please wait for the new cycle to initiate being matching with a wager")
+    def placeBet(self,spercent):
+        sp.verify(self.data.currentReferenceRewardCycle!=0,message="Please wait for the new cycle to initiate being matching with a wager")
         sp.verify(sp.amount>=sp.tez(1),message="Please send in the correct amount to be staked for this wager")
-        sp.verify(self.data.cycleDet[self.data.withdrawcycle].betDet.contains(spercent),message="Please enter the correct Strike Percentage Range")
+        sp.verify(self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails.contains(spercent),message="Invalid Range")
         #details passed by the wager is added to detMap and unconfirmed wager pool.And the wagerCount is incremented
-        self.data.cycleDet[self.data.withdrawcycle].betDet[spercent].det.push(sp.record(bettor=sp.sender,invest=sp.amount))
-        self.data.cycleDet[self.data.withdrawcycle].betDet[spercent].amt+=sp.amount
-        self.data.cycleDet[self.data.withdrawcycle].cAmount+=sp.amount
+        self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[spercent].bettorsDetails.push(sp.record(bettor=sp.sender,betAmount=sp.amount))
+        self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[spercent].amountInRange+=sp.amount
+        self.data.cycleOperations[self.data.currentReferenceRewardCycle].cAmount+=sp.amount
+
+    def rangeCheck(self,params):
+        sp.if sp.fst(params.rangeData)==sp.snd(params.rangeData):
+            sp.if sp.fst(params.rangeData)<0:
+                self.checkBelowRangeStatus(params)
+            sp.else:
+                self.checkAboveRangeStatus(params)
+        sp.else:
+            self.checkBetweenRangeStatus(params)
+    
+    def checkBelowRangeStatus(self,params):
+        sp.if params.currentPrice<self.data.cycleOperations[params.currentReferenceWithdrawCycle].priceAtCurrentCycle+sp.fst(sp.ediv(sp.fst(params.rangeData)*self.data.cycleOperations[params.currentReferenceWithdrawCycle].priceAtCurrentCycle,sp.int(10000)).open_some()):
+            self.checkWinnerCase(params)
+        sp.else:
+            self.transferLoserAmount(params)
+            
+    def checkAboveRangeStatus(self,params):
+        sp.if params.currentPrice>=self.data.cycleOperations[params.currentReferenceWithdrawCycle].priceAtCurrentCycle+sp.fst(sp.ediv(sp.fst(params.rangeData)*self.data.cycleOperations[params.currentReferenceWithdrawCycle].priceAtCurrentCycle,sp.int(10000)).open_some()):
+            self.checkWinnerCase(params)
+        sp.else:
+            self.transferLoserAmount(params)
+            
+    def checkBetweenRangeStatus(self,params):
+        sp.if (params.currentPrice>=self.data.cycleOperations[params.currentReferenceWithdrawCycle].priceAtCurrentCycle+sp.fst(sp.ediv(sp.fst(params.rangeData)*self.data.cycleOperations[params.currentReferenceWithdrawCycle].priceAtCurrentCycle,sp.int(10000)).open_some()))&(params.currentPrice<self.data.cycleOperations[params.currentReferenceWithdrawCycle].priceAtCurrentCycle+sp.fst(sp.ediv(sp.snd(params.rangeData)*self.data.cycleOperations[params.currentReferenceWithdrawCycle].priceAtCurrentCycle,sp.int(10000)).open_some())):
+            self.checkWinnerCase(params)
+        sp.else:
+            sp.if self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].amountInRange!=sp.mutez(0):
+                self.transferLoserAmount(params)
+    
+    def checkWinnerCase(self,params):
+        sp.if self.data.cycleOperations[params.currentReferenceWithdrawCycle].cAmount!=self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].amountInRange:
+            sp.if self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].amountInRange!=sp.mutez(0):
+                self.transferWinnerAmount(params)
+            sp.else:
+                self.carryForwardAmountToNextCycle(params)
+        sp.else:
+            #The initial investment along with usual baking rewards is being transferred without platform fee since there is no other active bet range
+            self.transferAmount(params)
+            
+    def transferWinnerAmount(self,params):
+        #2% platform usage fee is automatically added to the collateral for self sustained platform
+        self.data.collateral+=sp.split_tokens(params.rewards,sp.nat(200),sp.nat(10000))
+        params.rewards-=sp.split_tokens(params.rewards,sp.nat(200),sp.nat(10000))
+        self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].totalRewards=params.rewards
+        sp.for bettorsData in self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].bettorsDetails:
+            sp.send(bettorsData.bettor,bettorsData.betAmount+sp.split_tokens(params.rewards+self.data.rewardCarryForwarded,sp.fst(sp.ediv(bettorsData.betAmount,sp.mutez(1)).open_some()),sp.fst(sp.ediv(self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].amountInRange,sp.mutez(1)).open_some())))
+        self.data.rewardCarryForwarded=sp.mutez(0)
+        
+    def carryForwardAmountToNextCycle(self,params):
+        self.data.collateral+=sp.split_tokens(params.rewards,sp.nat(200),sp.nat(10000))
+        self.data.rewardCarryForwarded=sp.split_tokens(params.rewards,sp.nat(9800),sp.nat(10000))
+            
+    def transferAmount(self,params):
+        self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].totalRewards=params.rewards
+        sp.for bettorsData in self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].bettorsDetails:
+            sp.send(bettorsData.bettor,bettorsData.betAmount+sp.split_tokens(params.rewards+self.data.rewardCarryForwarded,sp.fst(sp.ediv(bettorsData.betAmount,sp.mutez(1)).open_some()),sp.fst(sp.ediv(self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].amountInRange,sp.mutez(1)).open_some())))
+        self.data.rewardCarryForwarded=sp.mutez(0)
+            
+    def transferLoserAmount(self,params):    
+        sp.for bettorsData in self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].bettorsDetails:
+            sp.send(bettorsData.bettor,bettorsData.betAmount)
+            
+    def initialiseNewCycleData(self):
+        spnew=sp.local("spnew",sp.int(0))
+        sp.while spnew.value<=self.data.rangeEnd:
+            sp.if spnew.value+self.data.rangestep<=self.data.rangeEnd:
+                self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[(spnew.value,spnew.value+self.data.rangestep)]=sp.record(amountInRange=sp.mutez(0),totalRewards=sp.mutez(0),bettorsDetails=sp.list(t=sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))
+                self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[(sp.int(-1)*(spnew.value+self.data.rangestep),sp.int(-1)*spnew.value)]=sp.record(amountInRange=sp.mutez(0),totalRewards=sp.mutez(0),bettorsDetails=sp.list(t=sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))
+            #handling extreme ranges initialisation
+            sp.else:
+                self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[(spnew.value,spnew.value)]=sp.record(amountInRange=sp.mutez(0),totalRewards=sp.mutez(0),bettorsDetails=sp.list(t=sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))
+                self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[(sp.int(-1)*spnew.value,sp.int(-1)*spnew.value)]=sp.record(amountInRange=sp.mutez(0),totalRewards=sp.mutez(0),bettorsDetails=sp.list(t=sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))
+            spnew.value+=self.data.rangestep
+    
 
     @sp.entry_point
     def winningsTransfer(self,currentPrice):
         sp.verify(self.data.admin.contains(sp.sender),message="You are not authorised to use this function")
-        cycleref = sp.local("cycleref", sp.int(0))
-        interest=sp.local("interest",sp.mutez(0))
-        spnew=sp.local("spnew",sp.int(0))
-        cycleref.value=self.data.withdrawcycle-5
-        self.data.withdrawcycle+=1
-        self.data.cycleDet[self.data.withdrawcycle]=sp.record(cPrice=currentPrice,cAmount=sp.mutez(0),betDet=sp.map(tkey=sp.TPair(sp.TInt,sp.TInt), tvalue=sp.TRecord(amt=sp.TMutez,winnings=sp.TMutez,det=sp.TList(sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))))
-        sp.if cycleref.value>0:
-            sp.if self.data.cycleDet[cycleref.value].cAmount!=sp.mutez(0):
-                interest.value=sp.split_tokens(self.data.cycleDet[cycleref.value].cAmount,self.data.rate,sp.nat(10000))
-                sp.verify(sp.balance-self.data.cycleDet[cycleref.value].cAmount>interest.value+self.data.interestPool,message="Insufficient Contract Balance to transfer the winnings of this baking cycle.")
-                #Initializing local variables wRate,lRate,wInterest,lInterest to hold the values of the winning and losing rate and subsequent interest they have won
-                sp.for x in self.data.cycleDet[cycleref.value].betDet.keys():
-                    sp.if sp.fst(x)==sp.snd(x):
-                        sp.if sp.fst(x)<0:
-                            sp.if currentPrice<self.data.cycleDet[cycleref.value].cPrice+sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()):
-                                sp.if self.data.cycleDet[cycleref.value].cAmount!=self.data.cycleDet[cycleref.value].betDet[x].amt:
-                                    sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
-                                        self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                        interest.value-=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                        self.data.cycleDet[cycleref.value].betDet[x].winnings=interest.value
-                                        sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                            sp.send(y.bettor,y.invest+sp.split_tokens(interest.value+self.data.interestPool,sp.fst(sp.ediv(y.invest,sp.mutez(1)).open_some()),sp.fst(sp.ediv(self.data.cycleDet[cycleref.value].betDet[x].amt,sp.mutez(1)).open_some())))
-                                        self.data.interestPool=sp.mutez(0)
-                                    sp.else:
-                                        self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                        self.data.interestPool=sp.split_tokens(interest.value,sp.nat(9800),sp.nat(10000))
-                                sp.else:
-                                    self.data.cycleDet[cycleref.value].betDet[x].winnings=interest.value
-                                    sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                        sp.send(y.bettor,y.invest+sp.split_tokens(interest.value+self.data.interestPool,sp.fst(sp.ediv(y.invest,sp.mutez(1)).open_some()),sp.fst(sp.ediv(self.data.cycleDet[cycleref.value].betDet[x].amt,sp.mutez(1)).open_some())))
-                                    self.data.interestPool=sp.mutez(0)
-                            sp.else:
-                                sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
-                                    sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                        sp.send(y.bettor,y.invest)
-                        sp.else:
-                            sp.if currentPrice>=self.data.cycleDet[cycleref.value].cPrice+sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()):
-                                sp.if self.data.cycleDet[cycleref.value].cAmount!=self.data.cycleDet[cycleref.value].betDet[x].amt:
-                                    sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
-                                        self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                        interest.value-=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                        self.data.cycleDet[cycleref.value].betDet[x].winnings=interest.value
-                                        sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                            sp.send(y.bettor,y.invest+sp.split_tokens(interest.value+self.data.interestPool,sp.fst(sp.ediv(y.invest,sp.mutez(1)).open_some()),sp.fst(sp.ediv(self.data.cycleDet[cycleref.value].betDet[x].amt,sp.mutez(1)).open_some())))
-                                        self.data.interestPool=sp.mutez(0)
-                                    sp.else:
-                                        self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                        self.data.interestPool=sp.split_tokens(interest.value,sp.nat(9800),sp.nat(10000))
-                                sp.else:
-                                    self.data.cycleDet[cycleref.value].betDet[x].winnings=interest.value
-                                    sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                        sp.send(y.bettor,y.invest+sp.split_tokens(interest.value+self.data.interestPool,sp.fst(sp.ediv(y.invest,sp.mutez(1)).open_some()),sp.fst(sp.ediv(self.data.cycleDet[cycleref.value].betDet[x].amt,sp.mutez(1)).open_some())))
-                                    self.data.interestPool=sp.mutez(0)
-                            sp.else:
-                                sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
-                                    sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                        sp.send(y.bettor,y.invest)
-                    sp.else:
-                        sp.if (currentPrice>=self.data.cycleDet[cycleref.value].cPrice+sp.fst(sp.ediv(sp.fst(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some()))&(currentPrice<self.data.cycleDet[cycleref.value].cPrice+sp.fst(sp.ediv(sp.snd(x)*self.data.cycleDet[cycleref.value].cPrice,sp.int(10000)).open_some())):
-                            sp.if self.data.cycleDet[cycleref.value].cAmount!=self.data.cycleDet[cycleref.value].betDet[x].amt:
-                                sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
-                                    self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                    interest.value-=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                    self.data.cycleDet[cycleref.value].betDet[x].winnings=interest.value
-                                    sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                        sp.send(y.bettor,y.invest+sp.split_tokens(interest.value+self.data.interestPool,sp.fst(sp.ediv(y.invest,sp.mutez(1)).open_some()),sp.fst(sp.ediv(self.data.cycleDet[cycleref.value].betDet[x].amt,sp.mutez(1)).open_some())))
-                                    self.data.interestPool=sp.mutez(0)
-                                sp.else:
-                                    self.data.collateral+=sp.split_tokens(interest.value,sp.nat(200),sp.nat(10000))
-                                    self.data.interestPool=sp.split_tokens(interest.value,sp.nat(9800),sp.nat(10000))
-                            sp.else:
-                                self.data.cycleDet[cycleref.value].betDet[x].winnings=interest.value
-                                sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                    sp.send(y.bettor,y.invest+sp.split_tokens(interest.value+self.data.interestPool,sp.fst(sp.ediv(y.invest,sp.mutez(1)).open_some()),sp.fst(sp.ediv(self.data.cycleDet[cycleref.value].betDet[x].amt,sp.mutez(1)).open_some())))
-                                self.data.interestPool=sp.mutez(0)
-                        sp.else:
-                            sp.if self.data.cycleDet[cycleref.value].betDet[x].amt!=sp.mutez(0):
-                                sp.for y in self.data.cycleDet[cycleref.value].betDet[x].det:
-                                    sp.send(y.bettor,y.invest)
-
-                    sp.if spnew.value<=self.data.rangeEnd:
-                        sp.if spnew.value+self.data.rangestep<=self.data.rangeEnd:
-                            self.data.cycleDet[self.data.withdrawcycle].betDet[(spnew.value,spnew.value+self.data.rangestep)]=sp.record(amt=sp.mutez(0),winnings=sp.mutez(0),det=sp.list(t=sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))
-                            self.data.cycleDet[self.data.withdrawcycle].betDet[(sp.int(-1)*(spnew.value+self.data.rangestep),sp.int(-1)*spnew.value)]=sp.record(amt=sp.mutez(0),winnings=sp.mutez(0),det=sp.list(t=sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))
-                        sp.else:
-                            self.data.cycleDet[self.data.withdrawcycle].betDet[(spnew.value,spnew.value)]=sp.record(amt=sp.mutez(0),winnings=sp.mutez(0),det=sp.list(t=sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))
-                            self.data.cycleDet[self.data.withdrawcycle].betDet[(sp.int(-1)*spnew.value,sp.int(-1)*spnew.value)]=sp.record(amt=sp.mutez(0),winnings=sp.mutez(0),det=sp.list(t=sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))
-                        spnew.value+=self.data.rangestep
-            sp.if cycleref.value>5:
-                del self.data.cycleDet[cycleref.value-5]
-        sp.while spnew.value<=self.data.rangeEnd:
-            sp.if spnew.value+self.data.rangestep<=self.data.rangeEnd:
-                self.data.cycleDet[self.data.withdrawcycle].betDet[(spnew.value,spnew.value+self.data.rangestep)]=sp.record(amt=sp.mutez(0),winnings=sp.mutez(0),det=sp.list(t=sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))
-                self.data.cycleDet[self.data.withdrawcycle].betDet[(sp.int(-1)*(spnew.value+self.data.rangestep),sp.int(-1)*spnew.value)]=sp.record(amt=sp.mutez(0),winnings=sp.mutez(0),det=sp.list(t=sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))
-            sp.else:
-                self.data.cycleDet[self.data.withdrawcycle].betDet[(spnew.value,spnew.value)]=sp.record(amt=sp.mutez(0),winnings=sp.mutez(0),det=sp.list(t=sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))
-                self.data.cycleDet[self.data.withdrawcycle].betDet[(sp.int(-1)*spnew.value,sp.int(-1)*spnew.value)]=sp.record(amt=sp.mutez(0),winnings=sp.mutez(0),det=sp.list(t=sp.TRecord(bettor=sp.TAddress,invest=sp.TMutez)))
-            spnew.value+=self.data.rangestep
+        currentReferenceWithdrawCycle = sp.local("currentReferenceWithdrawCycle", sp.int(0))
+        rewards=sp.local("rewards",sp.mutez(0))
+        currentReferenceWithdrawCycle.value=self.data.currentReferenceRewardCycle-5
+        self.data.currentReferenceRewardCycle+=1
+        self.data.cycleOperations[self.data.currentReferenceRewardCycle]=sp.record(priceAtCurrentCycle=currentPrice,cAmount=sp.mutez(0),rangeDetails=sp.map(tkey=sp.TPair(sp.TInt,sp.TInt), tvalue=sp.TRecord(amountInRange=sp.TMutez,totalRewards=sp.TMutez,bettorsDetails=sp.TList(sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))))
+        sp.if currentReferenceWithdrawCycle.value>0:
+            sp.if self.data.cycleOperations[currentReferenceWithdrawCycle.value].cAmount!=sp.mutez(0):
+                rewards.value=sp.split_tokens(self.data.cycleOperations[currentReferenceWithdrawCycle.value].cAmount,self.data.rate,sp.nat(10000))
+                sp.verify(sp.balance-self.data.cycleOperations[currentReferenceWithdrawCycle.value].cAmount>rewards.value+self.data.rewardCarryForwarded,message="Insufficient Contract Balance to transfer the totalRewards of this baking cycle.")
+                #for loop used to get all the data pertaining to the different ranges of the cycle whose staking period has just been completed
+                sp.for rangeData in self.data.cycleOperations[currentReferenceWithdrawCycle.value].rangeDetails.keys():
+                    params=sp.local("params",sp.record(currentReferenceWithdrawCycle=currentReferenceWithdrawCycle.value,rewards=rewards.value,rangeData=rangeData,currentPrice=currentPrice))
+                    self.rangeCheck(params.value)
+            #Deleting map data that is more than 11 reference cycles old
+            sp.if currentReferenceWithdrawCycle.value>5:
+                del self.data.cycleOperations[currentReferenceWithdrawCycle.value-5]
+        self.initialiseNewCycleData()
 
 
 
@@ -190,7 +182,7 @@ def test():
     scenario += c1.delegate(sp.some(sp.key_hash("tz1YB12JHVHw9GbN66wyfakGYgdTBvokmXQk"))).run(sender = sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2"))
     scenario += c1.delegate(sp.none).run(sender =sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2"))
     scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.setWager((0,250)).run(sender = wagerA, amount = sp.tez(20))
+    scenario += c1.placeBet((0,250)).run(sender = wagerA, amount = sp.tez(20))
     scenario += c1.collateralize().run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'), amount = sp.tez(2000))
     scenario += c1.winningsTransfer(150).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
     scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
