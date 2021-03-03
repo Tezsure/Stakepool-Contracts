@@ -65,7 +65,8 @@ class StakingMarket(sp.Contract):
     def transferLoserAmount(self,params):    
         sp.for bettorsData in self.data.cycleOperations[params.currentReferenceWithdrawCycle].rangeDetails[params.rangeData].bettorsDetails:
             sp.send(bettorsData.bettor,bettorsData.betAmount)
-            
+    
+    # Sets a structure for new cycle data        
     def initialiseNewCycleData(self):
         spnew=sp.local("spnew",sp.int(0))
         sp.while spnew.value<=self.data.rangeEnd:
@@ -77,7 +78,19 @@ class StakingMarket(sp.Contract):
                 self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[(spnew.value,spnew.value)] = sp.record(amountInRange=sp.mutez(0),totalRewards=sp.mutez(0),bettorsDetails=sp.list(t=sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))
                 self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[(sp.int(-1)*spnew.value,sp.int(-1)*spnew.value)] = sp.record(amountInRange=sp.mutez(0),totalRewards=sp.mutez(0),bettorsDetails=sp.list(t=sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))
             spnew.value += self.data.rangestep
+    
+    
+    # Is used by winningsTransfer entry point to call Harbinger Oracle.        
+    def fetchPriceFromHarbinger(self,harbingerContractAddress , asset , targetAddress):
+        contractParams = sp.contract(sp.TPair(sp.TString , sp.TContract(sp.TPair(sp.TString , sp.TPair(sp.TTimestamp , sp.TNat)))) , harbingerContractAddress , entry_point="get").open_some()
+        
+        callBack = sp.contract(sp.TPair(sp.TString , sp.TPair(sp.TTimestamp , sp.TNat)) , targetAddress , entry_point="getResponseFromHarbinger").open_some()
+        
+        dataToBeSent = sp.pair(asset , callBack)
+        
+        sp.transfer(dataToBeSent , sp.mutez(0) , contractParams)
 
+    # Mostly for recieving rewards from baker
     @sp.entry_point
     def default(self):
         sp.verify(sp.amount >= sp.mutez(0))
@@ -95,7 +108,7 @@ class StakingMarket(sp.Contract):
         sp.verify(self.data.admin.contains(sp.sender), message="You are not an admin")
         self.data.admin.remove(sp.sender)
 
-    # Admin-only.Set the range for the strike prices that users can bet on
+    # Admin-only.Set the range for the strike prices that users can bet on, this is useful when volatility changes and ranges are to be shrinked or expanded.
     @sp.entry_point
     def setBetRange(self,params):
         sp.verify(self.data.admin.contains(sp.sender), message="You are not authoritized to set the range for the available Bet prices")
@@ -129,6 +142,7 @@ class StakingMarket(sp.Contract):
         sp.verify(self.data.admin.contains(sp.sender), message="Only admins can change the current offer")
         self.data.rate = rate
 
+    # This entry point allows a bettor to place bet in current cycle.
     @sp.entry_point
     def placeBet(self,spercent):
         sp.verify(self.data.currentReferenceRewardCycle != 0, message="Please wait for the new cycle to initiate being matching with a wager")
@@ -140,14 +154,26 @@ class StakingMarket(sp.Contract):
         self.data.cycleOperations[self.data.currentReferenceRewardCycle].rangeDetails[spercent].amountInRange += sp.amount
         self.data.cycleOperations[self.data.currentReferenceRewardCycle].cAmount += sp.amount
 
+    #Initiates the process of rewards transfer at end of every cycle and creates a structure for a new cycle.
     @sp.entry_point
-    def winningsTransfer(self,currentPrice):
+    def winningsTransfer(self,params):
         sp.verify(self.data.admin.contains(sp.sender), message="You are not authorised to use this function")
+        self.fetchPriceFromHarbinger(params.harbingerContractAddress , params.asset , params.targetAddress)
+
+    # For getting response from harbinger and performing calculations for returning rewards or rewards + stake , depending upon whether bettor wins or loses. This entry point is called from harbinger oracle once we send request.
+    @sp.entry_point
+    def getResponseFromHarbinger(self,response):
+        sp.set_type(response , sp.TPair(sp.TString , sp.TPair(sp.TTimestamp , sp.TNat)))
+        
         currentReferenceWithdrawCycle = sp.local("currentReferenceWithdrawCycle", sp.int(0))
+        sp.verify(self.data.admin.contains(sp.source), message="You are not authorised to use this function")
+        cp=sp.local("cp",sp.int(0))
+        #cp = sp.snd(sp.snd(response))
+        cp = sp.to_int(sp.fst(sp.ediv(sp.snd(sp.snd(response)) , sp.nat(10000)).open_some()))
         rewards = sp.local("rewards",sp.mutez(0))
         currentReferenceWithdrawCycle.value = self.data.currentReferenceRewardCycle-5
         self.data.currentReferenceRewardCycle += 1
-        self.data.cycleOperations[self.data.currentReferenceRewardCycle] = sp.record(priceAtCurrentCycle=currentPrice,cAmount=sp.mutez(0),rangeDetails=sp.map(tkey=sp.TPair(sp.TInt,sp.TInt), tvalue=sp.TRecord(amountInRange=sp.TMutez,totalRewards=sp.TMutez,bettorsDetails=sp.TList(sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))))
+        self.data.cycleOperations[self.data.currentReferenceRewardCycle] = sp.record(priceAtCurrentCycle=cp,cAmount=sp.mutez(0),rangeDetails=sp.map(tkey=sp.TPair(sp.TInt,sp.TInt), tvalue=sp.TRecord(amountInRange=sp.TMutez,totalRewards=sp.TMutez,bettorsDetails=sp.TList(sp.TRecord(bettor=sp.TAddress,betAmount=sp.TMutez)))))
         
         sp.if currentReferenceWithdrawCycle.value>0:
             sp.if self.data.cycleOperations[currentReferenceWithdrawCycle.value].cAmount != sp.mutez(0):
@@ -156,7 +182,7 @@ class StakingMarket(sp.Contract):
                 
                 #for loop used to get all the data pertaining to the different ranges of the cycle whose staking period has just been completed
                 sp.for rangeData in self.data.cycleOperations[currentReferenceWithdrawCycle.value].rangeDetails.keys():
-                    params=sp.local("params",sp.record(currentReferenceWithdrawCycle=currentReferenceWithdrawCycle.value,rewards=rewards.value,rangeData=rangeData,currentPrice=currentPrice))
+                    params=sp.local("params",sp.record(currentReferenceWithdrawCycle=currentReferenceWithdrawCycle.value,rewards=rewards.value,rangeData=rangeData,currentPrice=cp))
                     self.rangeCheck(params.value)
                     
             #Deleting map data that is more than 11 reference cycles old
@@ -182,15 +208,34 @@ def test():
     scenario += c1.addAdmin(sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
     scenario += c1.delegate(sp.some(sp.key_hash("tz1YB12JHVHw9GbN66wyfakGYgdTBvokmXQk"))).run(sender = sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2"))
     scenario += c1.delegate(sp.none).run(sender =sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2"))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
     scenario += c1.placeBet((0,250)).run(sender = wagerA, amount = sp.tez(20))
     scenario += c1.collateralize().run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'), amount = sp.tez(2000))
-    scenario += c1.winningsTransfer(150).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
-    scenario += c1.winningsTransfer(200).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    
+    scenario += c1.winningsTransfer(harbingerContractAddress = sp.address("KT1-Harbinger") , asset = "XTZ-USD" , targetAddress = sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.getResponseFromHarbinger(("XTZ-USD" , (sp.timestamp(100) , sp.nat(3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))

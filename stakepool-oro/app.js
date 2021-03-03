@@ -10,9 +10,9 @@ const pingContractForCycleAndPriceChange = async () => {
   try {
     const signer = await InMemorySigner.InMemorySigner.fromSecretKey("edskS6DouFfVMwL6YVcHRuJizsPWo8t91h1SR5ZUuRazXDRGVV4eyY7nffoNTXKzP61gqXtPKEPbvZWWkMRga12TKaM7GiMPJi");
     tezos.setProvider({signer});
-    tezos.contract.at("KT1LSLUHe9U4MqDuyrMhWThCWu7P6g61vs5k")
+    tezos.contract.at("KT1K4eLeqpbSYN9j4sMBw9vFvkCWFSVUm6F5")
         .then(contract => {
-            return contract.methods.winningsTransfer("XTZ-USD","KT1LWDzd6mFhjjnb65a1PjHDNZtFKBieTQKH","KT1LSLUHe9U4MqDuyrMhWThCWu7P6g61vs5k").send()
+            return contract.methods.winningsTransfer("XTZ-USD","KT1LWDzd6mFhjjnb65a1PjHDNZtFKBieTQKH","KT1K4eLeqpbSYN9j4sMBw9vFvkCWFSVUm6F5").send()
         })
         .then(op => {
             console.log(op.hash);
