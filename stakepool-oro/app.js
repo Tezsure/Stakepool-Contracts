@@ -5,19 +5,18 @@ const rpc = 'https://testnet.tezster.tech';
 const tezos = new Tezos.TezosToolkit(rpc);
 var cycle=0;
 var errorFlag=false;
-const contractAddress = {"tezos":"KT1AQd6KeoPyFJdY4baRyR6zCkGZV2r35K1u", "ethereum":"", "bitcoin":""};
 
-const sendPriceToContract = async (id,price) => {
+const pingContractForCycleAndPriceChange = async () => {
   try {
-    const signer = await InMemorySigner.InMemorySigner.fromSecretKey(process.env.Privatekey);
+    const signer = await InMemorySigner.InMemorySigner.fromSecretKey("edskS6DouFfVMwL6YVcHRuJizsPWo8t91h1SR5ZUuRazXDRGVV4eyY7nffoNTXKzP61gqXtPKEPbvZWWkMRga12TKaM7GiMPJi");
     tezos.setProvider({signer});
-    tezos.contract.at(contractAddress.id)
+    tezos.contract.at("KT1LSLUHe9U4MqDuyrMhWThCWu7P6g61vs5k")
         .then(contract => {
-            return contract.methods.winningsTransfer(price).send()
+            return contract.methods.winningsTransfer("XTZ-USD","KT1LWDzd6mFhjjnb65a1PjHDNZtFKBieTQKH","KT1LSLUHe9U4MqDuyrMhWThCWu7P6g61vs5k").send()
         })
         .then(op => {
             console.log(op.hash);
-            return op.confirmation(2)
+            return op.confirmation()
         })
         .then(hash => {
             console.log(hash);
@@ -27,19 +26,19 @@ const sendPriceToContract = async (id,price) => {
             console.log(err);
             console.log(`Setting timeout to error`);
             setTimeout(() => {
-                getPrice();
+              getCycle();
             },60000)
         })
       }catch (err) {
         console.log(err);
         console.log(`Setting timeout to error`);
         setTimeout(() => {
-            getPrice();
+          getCycle();
         },60000)
       }
 }
 
-const getPrice = async () => {
+const getCycle = async () => {
   try{
   console.log('----- Fetching initial cycle data -----');
   //let cycleApiResponse = await this._endPointReader.fetchDataPoint(this._tzpoint+this.cycle.toString());
@@ -57,37 +56,20 @@ const getPrice = async () => {
     cycle=cycleApiResponse.data.cycle;
     cycleEndTime=new Date(cycleApiResponse.data.end_time);
     cycleEndTime.setSeconds(cycleEndTime.getSeconds() + (4*cycleApiResponse.data.solvetime_min))
-    Axios.get("https://api.coingecko.com/api/v3/simple/price?ids=tezos%2Cethereum%2Cbitcoin&vs_currencies=usd&include_market_cap=false&include_24hr_vol=false&include_24hr_change=false&include_last_updated_at=true")
-        .then(res => {
-            for(var priceId in res.data){
-              console.log("Data received for "+priceId);
-              console.log(res.data.priceId);
-              let priceToBeSent = res.data.priceId.usd * 100;
-              priceToBeSent = Math.floor(priceToBeSent);
-              console.log(priceToBeSent);
-              sendPriceToContract(priceId,priceToBeSent);
-            }
-        })
-        .catch(err => {
-            console.log(err);
-            console.log(`Setting timeout to error`);
-            setTimeout(() => {
-                getPrice();
-            },60000)
-        })
+    pingContractForCycleAndPriceChange();
     }else{
       console.log(`The current cycle ${cycle} is still ongoing`);
       }
       setTimeout(() => {
-          getPrice();
+        getCycle();
       },cycleEndTime.valueOf()-current.valueOf())
     }catch (err) {
       console.log(err);
       console.log(`Setting timeout to error`);
       setTimeout(() => {
-          getPrice();
+        getCycle();
       },60000)
     }
 }
 
-getPrice();
+getCycle();
