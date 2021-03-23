@@ -1,0 +1,15 @@
+service: stakepool-oro
+frameworkVersion: '2'
+provider:
+    name: aws
+    region: ap-south-1
+    runtime: nodejs12.x
+    lambdaHashingVersion: 20201221
+
+functions:
+    fetchCycle:
+        handler: handler.fetchCycle
+        events:
+            - schedule:
+                  rate: cron(*/2 * * * ? *)
+                  enabled: true
