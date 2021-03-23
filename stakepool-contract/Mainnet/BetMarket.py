@@ -156,6 +156,15 @@ class StakingMarket(sp.Contract):
         self.data.collateral -= amount
         sp.send(sp.sender, amount)
 
+    # Admin-only. Retrieve token from contract.
+    @sp.entry_point
+    def retrieveToken(self, amount, address):
+        sp.verify(self.data.admin.contains(sp.sender),
+                  message="Only admin can retrieve token")
+        sp.verify(sp.balance >= amount,
+                  message="Insufficient funds to meet your retreive token request")
+        sp.send(address, amount)
+
     # Admin-only. Set the current offer: rewards rate (in basis points).
     @sp.entry_point
     def changeRewardRoi(self, rate):
@@ -188,6 +197,7 @@ class StakingMarket(sp.Contract):
             params.harbingerContractAddress, params.asset, params.targetAddress)
 
     # For getting response from harbinger and performing calculations for returning rewards or rewards + stake , depending upon whether bettor wins or loses. This entry point is called from harbinger oracle once we send request.
+
     @sp.entry_point
     def getResponseFromHarbinger(self, response):
         sp.set_type(response, sp.TPair(
@@ -202,7 +212,7 @@ class StakingMarket(sp.Contract):
         cp = sp.to_int(
             sp.fst(sp.ediv(sp.snd(sp.snd(response)), sp.nat(10000)).open_some()))
         rewards = sp.local("rewards", sp.mutez(0))
-        currentReferenceWithdrawCycle.value = self.data.currentReferenceRewardCycle-5
+        currentReferenceWithdrawCycle.value = self.data.currentReferenceRewardCycle-7
         self.data.currentReferenceRewardCycle += 1
         self.data.cycleOperations[self.data.currentReferenceRewardCycle] = sp.record(priceAtCurrentCycle=cp, cAmount=sp.mutez(0), rangeDetails=sp.map(tkey=sp.TPair(
             sp.TInt, sp.TInt), tvalue=sp.TRecord(amountInRange=sp.TMutez, totalRewards=sp.TMutez, bettorsDetails=sp.TList(sp.TRecord(bettor=sp.TAddress, betAmount=sp.TMutez)))))
@@ -221,8 +231,8 @@ class StakingMarket(sp.Contract):
                     self.rangeCheck(params.value)
 
             # Deleting map data that is more than 11 reference cycles old
-            sp.if currentReferenceWithdrawCycle.value > 5:
-                del self.data.cycleOperations[currentReferenceWithdrawCycle.value-5]
+            sp.if currentReferenceWithdrawCycle.value > 7:
+                del self.data.cycleOperations[currentReferenceWithdrawCycle.value-7]
         self.initialiseNewCycleData()
 
 
@@ -236,65 +246,70 @@ def test():
     takerA = sp.test_account("takerA")
     takerB = sp.test_account("takerB")
     admin = sp.test_account("admin")
-    c1 = StakingMarket(sp.address("tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795"))
+    c1 = StakingMarket(sp.address("tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp"))
 
     scenario += c1
-    scenario += c1.default().run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+    scenario += c1.default().run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.addAdmin(sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2")).run(
-        sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.delegate(sp.some(sp.key_hash("tz1YB12JHVHw9GbN66wyfakGYgdTBvokmXQk"))
                             ).run(sender=sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2"))
     scenario += c1.delegate(sp.none).run(
         sender=sp.address("tz1N2SiwSoTEs8RXKxirYBVN95yoVJuQhPJ2"))
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.placeBet((0, 250)).run(sender=wagerA, amount=sp.tez(20))
-    scenario += c1.collateralize().run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'),
+    scenario += c1.collateralize().run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'),
                                        amount=sp.tez(2000))
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
 
     scenario += c1.winningsTransfer(harbingerContractAddress=sp.address("KT1-Harbinger"), asset="XTZ-USD",
-                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+                                    targetAddress=sp.address("KT1-SELF")).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
     scenario += c1.getResponseFromHarbinger(("XTZ-USD", (sp.timestamp(100), sp.nat(
-        3680387)))).run(sender=sp.address('tz1PQ7zecVpTKHvPvjaicGRSYrweBEJ5J795'))
+        3680387)))).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
+
+    scenario += c1.uncollateralize(sp.mutez(500000000), 'tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp').run(
+        sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
+    scenario += c1.retrieveToken(address=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'),
+                                 amount=sp.mutez(100000000)).run(sender=sp.address('tz1N2dozNmbT8Ds8NAH8TLQTXfuxJoHPT3hp'))
