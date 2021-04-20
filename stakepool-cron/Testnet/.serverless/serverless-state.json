@@ -175,7 +175,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/stakepool-cron/dev/1618919141845-2021-04-20T11:45:41.845Z/stakepool-cron.zip"
+                "S3Key": "serverless/stakepool-cron/dev/1618924356061-2021-04-20T13:12:36.061Z/stakepool-cron.zip"
               },
               "Handler": "handler.pingContractTestnet",
               "Runtime": "nodejs12.x",
@@ -380,7 +380,7 @@
     "artifact": "/Users/adityagautam/Desktop/Dev/Stakepool-Contracts/stakepool-cron/Testnet/.serverless/stakepool-cron.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/stakepool-cron/dev/1618919141845-2021-04-20T11:45:41.845Z",
+    "artifactDirectoryName": "serverless/stakepool-cron/dev/1618924356061-2021-04-20T13:12:36.061Z",
     "artifact": "stakepool-cron.zip"
   }
 }

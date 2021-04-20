@@ -6,8 +6,8 @@ const rpc = 'https://mainnet-tezos.giganode.io';
 const tezos = new Tezos.TezosToolkit(rpc);
 
 const pingContractMainnet = async () => {
+    console.log('----- Ping contract start -----');
     const {
-        TIMER,
         MAINNET_SECRET_KEY,
         MAINNET_CONTRACT_ADDRESS,
         MAINNET_HARBINGER_CONTRACT_ADDRESS,
@@ -29,21 +29,18 @@ const pingContractMainnet = async () => {
                 .send();
         })
         .then((op) => {
+            console.log('------------- Operation -----------------');
             console.log(op);
             console.log(op.hash);
             return op.confirmation();
         })
         .then((hash) => {
+            console.log('------------- Hash -----------------');
             console.log(hash);
-            // setTimeout(() => {
-            pingContractMainnet();
-            // }, TIMER);
         })
         .catch((err) => {
+            console.log('------------- Error -----------------');
             console.log(err);
-            // setTimeout(() => {
-            pingContractMainnet();
-            // }, TIMER);
         });
 };
 

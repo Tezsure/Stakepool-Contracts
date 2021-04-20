@@ -175,7 +175,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/stakepool-cron-mainnet/dev/1618918916407-2021-04-20T11:41:56.407Z/stakepool-cron-mainnet.zip"
+                "S3Key": "serverless/stakepool-cron-mainnet/dev/1618924304223-2021-04-20T13:11:44.223Z/stakepool-cron-mainnet.zip"
               },
               "Handler": "handler.pingContractMainnet",
               "Runtime": "nodejs12.x",
@@ -193,14 +193,14 @@
               "PingContractMainnetLogGroup"
             ]
           },
-          "PingContractMainnetLambdaVersionUqQVUogsjGRsD8kO14c4WPsGff9di214EFMM10aQ8BI": {
+          "PingContractMainnetLambdaVersionyAPN9fYa0tZejmS0V00BlmCIE26nHlNDbMox6t8bsm0": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "PingContractMainnetLambdaFunction"
               },
-              "CodeSha256": "xGxYQkFXfGo3x7Bo1d6v18Q9ZJHlF11cLTKAHNv93lY="
+              "CodeSha256": "n/2avMhvWdoQ7TqX/s+3KXHDQBZI394kFtQ+jNNy/Vg="
             }
           },
           "PingContractMainnetEventsRuleSchedule1": {
@@ -250,7 +250,7 @@
           "PingContractMainnetLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "PingContractMainnetLambdaVersionUqQVUogsjGRsD8kO14c4WPsGff9di214EFMM10aQ8BI"
+              "Ref": "PingContractMainnetLambdaVersionyAPN9fYa0tZejmS0V00BlmCIE26nHlNDbMox6t8bsm0"
             }
           }
         }
@@ -357,7 +357,7 @@
         "timeout": 6,
         "runtime": "nodejs12.x",
         "vpc": {},
-        "versionLogicalId": "PingContractMainnetLambdaVersionUqQVUogsjGRsD8kO14c4WPsGff9di214EFMM10aQ8BI"
+        "versionLogicalId": "PingContractMainnetLambdaVersionyAPN9fYa0tZejmS0V00BlmCIE26nHlNDbMox6t8bsm0"
       }
     },
     "configValidationMode": "warn",
@@ -380,7 +380,7 @@
     "artifact": "/Users/adityagautam/Desktop/Dev/Stakepool-Contracts/stakepool-cron/Mainnet/.serverless/stakepool-cron-mainnet.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/stakepool-cron-mainnet/dev/1618918916407-2021-04-20T11:41:56.407Z",
+    "artifactDirectoryName": "serverless/stakepool-cron-mainnet/dev/1618924304223-2021-04-20T13:11:44.223Z",
     "artifact": "stakepool-cron-mainnet.zip"
   }
 }

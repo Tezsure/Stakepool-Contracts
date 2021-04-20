@@ -3,3 +3,6 @@ package-lock.json
 .dev.env
 .prod.env
 .env
+.serverless
+stakepool-cron/Mainnet/.serverless
+stakepool-cron/Testnet/.serverless
