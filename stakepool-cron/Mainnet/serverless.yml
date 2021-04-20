@@ -1,5 +1,6 @@
-service: stakepool-oro
+service: stakepool-cron-mainnet
 frameworkVersion: '2'
+useDotenv: true
 provider:
     name: aws
     region: ap-south-1
@@ -7,8 +8,8 @@ provider:
     lambdaHashingVersion: 20201221
 
 functions:
-    fetchCycle:
-        handler: handler.fetchCycle
+    pingContractMainnet:
+        handler: handler.pingContractMainnet
         events:
             - schedule:
                   rate: cron(*/2 * * * ? *)

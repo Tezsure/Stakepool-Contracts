@@ -8,8 +8,8 @@ provider:
     lambdaHashingVersion: 20201221
 
 functions:
-    pingContract:
-        handler: handler.pingContract
+    pingContractTestnet:
+        handler: handler.pingContractTestnet
         events:
             - schedule:
                   rate: cron(*/2 * * * ? *)

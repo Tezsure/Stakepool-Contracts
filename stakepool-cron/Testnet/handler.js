@@ -6,7 +6,7 @@ const InMemorySigner = require('@taquito/signer');
 const rpc = process.env.TESTNET_RPC_URL;
 const tezos = new Tezos.TezosToolkit(rpc);
 
-const pingContract = async () => {
+const pingContractTestnet = async () => {
     console.log('----- Ping contract start -----');
     const {
         TESTNET_SECRET_KEY,
@@ -40,11 +40,13 @@ const pingContract = async () => {
         .then((hash) => {
             console.log('------------- Hash -----------------');
             console.log(hash);
+            pingContractTestnet();
         })
         .catch((err) => {
             console.log('------------- Error -----------------');
             console.log(err.message);
+            pingContractTestnet();
         });
 };
 
-exports.pingContract = pingContract;
+exports.pingContractTestnet = pingContractTestnet;

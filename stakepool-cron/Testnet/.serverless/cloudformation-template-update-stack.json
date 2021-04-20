@@ -71,10 +71,10 @@
         }
       }
     },
-    "PingContractLogGroup": {
+    "PingContractTestnetLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
-        "LogGroupName": "/aws/lambda/stakepool-cron-dev-pingContract"
+        "LogGroupName": "/aws/lambda/stakepool-cron-dev-pingContractTestnet"
       }
     },
     "IamRoleLambdaExecution": {
@@ -154,18 +154,18 @@
         }
       }
     },
-    "PingContractLambdaFunction": {
+    "PingContractTestnetLambdaFunction": {
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/stakepool-cron/dev/1618232920293-2021-04-12T13:08:40.293Z/stakepool-cron.zip"
+          "S3Key": "serverless/stakepool-cron/dev/1618919141845-2021-04-20T11:45:41.845Z/stakepool-cron.zip"
         },
-        "Handler": "handler.pingContract",
+        "Handler": "handler.pingContractTestnet",
         "Runtime": "nodejs12.x",
-        "FunctionName": "stakepool-cron-dev-pingContract",
+        "FunctionName": "stakepool-cron-dev-pingContractTestnet",
         "MemorySize": 1024,
         "Timeout": 6,
         "Role": {
@@ -176,20 +176,20 @@
         }
       },
       "DependsOn": [
-        "PingContractLogGroup"
+        "PingContractTestnetLogGroup"
       ]
     },
-    "PingContractLambdaVersionuhfVBWcfpOWdb6P8tvJL89EypOc1WuHFEZboAd1VTw": {
+    "PingContractTestnetLambdaVersionWMUDV1YAtcjYwuJbGUEa5o7dYjKoiToKWOHbzd5k28": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
-          "Ref": "PingContractLambdaFunction"
+          "Ref": "PingContractTestnetLambdaFunction"
         },
-        "CodeSha256": "cbfHY28RBuqiEk+hbjOfIs1v7rliMgCEFKLbv01wD1Y="
+        "CodeSha256": "aeHtPZBsVlW9JyA/vcsmyf5Guac2LcmmxaZUEWYmRsw="
       }
     },
-    "PingContractEventsRuleSchedule1": {
+    "PingContractTestnetEventsRuleSchedule1": {
       "Type": "AWS::Events::Rule",
       "Properties": {
         "ScheduleExpression": "cron(*/2 * * * ? *)",
@@ -198,21 +198,21 @@
           {
             "Arn": {
               "Fn::GetAtt": [
-                "PingContractLambdaFunction",
+                "PingContractTestnetLambdaFunction",
                 "Arn"
               ]
             },
-            "Id": "pingContractSchedule"
+            "Id": "pingContractTestnetSchedule"
           }
         ]
       }
     },
-    "PingContractLambdaPermissionEventsRuleSchedule1": {
+    "PingContractTestnetLambdaPermissionEventsRuleSchedule1": {
       "Type": "AWS::Lambda::Permission",
       "Properties": {
         "FunctionName": {
           "Fn::GetAtt": [
-            "PingContractLambdaFunction",
+            "PingContractTestnetLambdaFunction",
             "Arn"
           ]
         },
@@ -220,7 +220,7 @@
         "Principal": "events.amazonaws.com",
         "SourceArn": {
           "Fn::GetAtt": [
-            "PingContractEventsRuleSchedule1",
+            "PingContractTestnetEventsRuleSchedule1",
             "Arn"
           ]
         }
@@ -233,10 +233,10 @@
         "Ref": "ServerlessDeploymentBucket"
       }
     },
-    "PingContractLambdaFunctionQualifiedArn": {
+    "PingContractTestnetLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "PingContractLambdaVersionuhfVBWcfpOWdb6P8tvJL89EypOc1WuHFEZboAd1VTw"
+        "Ref": "PingContractTestnetLambdaVersionWMUDV1YAtcjYwuJbGUEa5o7dYjKoiToKWOHbzd5k28"
       }
     }
   }
