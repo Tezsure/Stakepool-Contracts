@@ -13,7 +13,7 @@ const {
 const pingContractMainnet = async () => {
     try {
         console.log('----- Ping contract start -----', MAINNET_SECRET_KEY);
-        const rpc = TESTNET_RPC_URL;
+        const rpc = MAINNET_RPC_URL;
         const Tezos = new TezosToolkit(rpc);
         const signer = new InMemorySigner(MAINNET_SECRET_KEY);
         // eslint-disable-next-line no-restricted-properties
